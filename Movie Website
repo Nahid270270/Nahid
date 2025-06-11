@@ -1,13 +1,44 @@
-from flask import Flask, render_template_string, request, redirect, url_for
+from flask import Flask, render_template_string, request, redirect, url_for, Response
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 import requests, os
+from functools import wraps # এই লাইনটি যোগ করা হয়েছে
+from dotenv import load_dotenv # .env ফাইল থেকে লোড করার জন্য যোগ করা হয়েছে
+
+# .env ফাইল থেকে এনভায়রনমেন্ট ভেরিয়েবল লোড করুন (শুধুমাত্র লোকাল ডেভেলপমেন্টের জন্য)
+load_dotenv() 
 
 app = Flask(__name__)
 
 # Environment variables for MongoDB URI and TMDb API Key
 MONGO_URI = os.getenv("MONGO_URI")
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+
+# --- অ্যাডমিন অথেন্টিকেশনের জন্য নতুন ভেরিয়েবল ও ফাংশন ---
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin") # এনভায়রনমেন্ট ভেরিয়েবল থেকে ইউজারনেম নিন, ডিফল্ট 'admin'
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password") # এনভায়রনমেন্ট ভেরিয়েবল থেকে পাসওয়ার্ড নিন, ডিফল্ট 'password'
+
+def check_auth(username, password):
+    """ইউজারনেম ও পাসওয়ার্ড সঠিক কিনা তা যাচাই করে।"""
+    return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
+
+def authenticate():
+    """অথেন্টিকেশন ব্যর্থ হলে 401 রেসপন্স পাঠায়।"""
+    return Response(
+    'Could not verify your access level for that URL.\n'
+    'You have to login with proper credentials', 401,
+    {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
+def requires_auth(f):
+    """এই ডেকোরেটরটি রুট ফাংশনে অথেন্টিকেশন চেক করে।"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
+# --- অথেন্টিকেশন সংক্রান্ত পরিবর্তন শেষ ---
 
 # Check if environment variables are set
 if not MONGO_URI:
@@ -27,7 +58,7 @@ except Exception as e:
     print(f"Error connecting to MongoDB: {e}. Exiting.")
     exit(1)
 
-# TMDb Genre Map (for converting genre IDs to names)
+# TMDb Genre Map (for converting genre IDs to names) - অপরিবর্তিত
 TMDb_Genre_Map = {
     28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
     99: "Documentary", 18: "Drama", 10402: "Music", 9648: "Mystery",
@@ -35,7 +66,7 @@ TMDb_Genre_Map = {
     10752: "War", 37: "Western", 10751: "Family", 14: "Fantasy", 36: "History"
 }
 
-# --- START OF index_html TEMPLATE ---
+# --- START OF index_html TEMPLATE --- (কোন পরিবর্তন নেই)
 index_html = """
 <!DOCTYPE html>
 <html lang="en">
@@ -691,7 +722,7 @@ index_html = """
 # --- END OF index_html TEMPLATE ---
 
 
-# --- START OF detail_html TEMPLATE ---
+# --- START OF detail_html TEMPLATE --- (কোন পরিবর্তন নেই)
 detail_html = """
 <!DOCTYPE html>
 <html lang="en">
@@ -1071,7 +1102,7 @@ detail_html = """
 # --- END OF detail_html TEMPLATE ---
 
 
-# --- START OF admin_html TEMPLATE ---
+# --- START OF admin_html TEMPLATE --- (কোন পরিবর্তন নেই)
 admin_html = """
 <!DOCTYPE html>
 <html>
@@ -1411,7 +1442,7 @@ admin_html = """
 # --- END OF admin_html TEMPLATE ---
 
 
-# --- START OF edit_html TEMPLATE ---
+# --- START OF edit_html TEMPLATE --- (কোন পরিবর্তন নেই)
 edit_html = """
 <!DOCTYPE html>
 <html>
@@ -1848,6 +1879,7 @@ def movie_detail(movie_id):
         return render_template_string(detail_html, movie=None)
 
 @app.route('/admin', methods=["GET", "POST"])
+@requires_auth # অথেন্টিকেশন ডেকোরেটর যোগ করা হয়েছে
 def admin():
     if request.method == "POST":
         title = request.form.get("title")
@@ -1982,6 +2014,7 @@ def admin():
 
 
 @app.route('/edit_movie/<movie_id>', methods=["GET", "POST"])
+@requires_auth # অথেন্টিকেশন ডেকোরেটর যোগ করা হয়েছে
 def edit_movie(movie_id):
     try:
         movie = movies.find_one({"_id": ObjectId(movie_id)})
@@ -2125,6 +2158,7 @@ def edit_movie(movie_id):
 
 
 @app.route('/delete_movie/<movie_id>')
+@requires_auth # অথেন্টিকেশন ডেকোরেটর যোগ করা হয়েছে
 def delete_movie(movie_id):
     try:
         # Delete the movie from MongoDB using its ObjectId
