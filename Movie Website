@@ -36,14 +36,13 @@ TMDb_Genre_Map = {
 }
 
 # --- START OF index_html TEMPLATE ---
-# (The updated index_html template will go here as a multi-line string)
 index_html = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Movie Dokan Style</title>
+<title>MovieZone - Your Entertainment Hub</title>
 <style>
   /* Reset & basics */
   * {
@@ -159,6 +158,16 @@ index_html = """
     padding-bottom: 10px; /* Add padding for scrollbar */
   }
 
+  /* New style for vertical grid layout (for "See All" pages) */
+  .vertical-grid {
+    grid-auto-flow: row; /* Change to flow vertically */
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); /* 3-5 columns on desktop */
+    overflow-x: visible; /* Disable horizontal scrolling */
+    -webkit-overflow-scrolling: auto; /* Revert scrolling */
+    scroll-snap-type: none; /* Disable snapping */
+    padding-bottom: 0; /* No extra padding for scrollbar */
+  }
+
   /* Hide scrollbar for Chrome, Safari and Opera */
   .grid::-webkit-scrollbar {
     display: none;
@@ -167,22 +176,6 @@ index_html = """
   .grid {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
-  }
-
-  /* Specific styles for auto-scrolling grids */
-  .auto-scroll-grid {
-      animation: scrollGrid 30s linear infinite; /* Adjust duration as needed */
-  }
-  .auto-scroll-grid:hover {
-      animation-play-state: paused; /* Pause animation on hover */
-  }
-  /* Keyframe for auto-scrolling */
-  @keyframes scrollGrid {
-      0% { transform: translateX(0); }
-      /* This scrolls the entire content. For a seamless loop, you'd typically duplicate items. */
-      /* For now, it scrolls to the end of the content. Adjust value if needed. */
-      100% { transform: translateX(calc(-100% + 100vw - 30px)); } /* Scrolls enough to show new items, considering viewport width */
-      /* 100vw - 30px is an approximation of viewport width minus main padding */
   }
 
   .movie-card {
@@ -345,6 +338,11 @@ index_html = """
         gap: 10px;
         margin-bottom: 30px;
     }
+    .vertical-grid { /* Mobile adjustment for vertical grid */
+        grid-auto-flow: row;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); /* 2-3 columns on mobile */
+        gap: 15px;
+    }
     .movie-card { box-shadow: 0 0 5px rgba(0,0,0,0.5); }
     .movie-poster { height: 180px; } /* Larger height for mobile posters */
     .movie-info { padding: 8px; background: rgba(0, 0, 0, 0.7); }
@@ -370,16 +368,14 @@ index_html = """
     .movie-top-title {
         font-size: 13px;
     }
-
-    /* Mobile specific auto-scroll keyframe adjustment */
-    @keyframes scrollGrid {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(calc(-100% + 100vw - 20px)); } /* 100vw - 20px for mobile main padding */
-    }
   }
 
   @media (max-width: 480px) {
       .grid { grid-auto-columns: minmax(120px,1fr); } /* Even smaller min width for very small screens */
+      .vertical-grid {
+          grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); /* Adjust for smaller screens */
+          gap: 10px;
+      }
       .movie-poster { height: 160px; } /* Adjust height for very small screens */
   }
   /* Mobile adjustments - END */
@@ -417,20 +413,22 @@ index_html = """
 </head>
 <body>
 <header>
-  <h1>Movie Dokan</h1>
+  <h1>MovieZone</h1>
   <form method="GET" action="/">
     <input type="search" name="q" placeholder="Search movies..." value="{{ query|default('') }}" />
   </form>
 </header>
 <main>
-  {% if query %}
+  {# Conditional rendering for full list pages vs. homepage sections #}
+  {% if is_full_page_list %}
     <div class="category-header">
-      <h2>Search Results for "{{ query }}"</h2>
+      <h2>{{ query }}</h2> {# query holds the title like "Trending on MovieZone" #}
+      {# No "See All" button for full list pages #}
     </div>
     {% if movies|length == 0 %}
-      <p style="text-align:center; color:#999; margin-top: 40px;">No movies found for your search.</p>
+      <p style="text-align:center; color:#999; margin-top: 40px;">No content found in this category.</p>
     {% else %}
-      <div class="grid"> {# Search results grid should not auto-scroll #}
+      <div class="grid vertical-grid"> {# Apply vertical-grid class here #}
         {% for m in movies %}
         <a href="{{ url_for('movie_detail', movie_id=m._id) }}" class="movie-card">
           {% if m.poster %}
@@ -463,165 +461,207 @@ index_html = """
         {% endfor %}
       </div>
     {% endif %}
-  {% else %}
-    <div class="category-header">
-      <h2>Trending on MovieDokan</h2>
-      <a href="{{ url_for('trending_movies') }}" class="see-all-btn">See All</a>
-    </div>
-    {% if trending_movies|length == 0 %}
-      <p style="text-align:center; color:#999;">No trending movies found.</p>
-    {% else %}
-      <div class="grid auto-scroll-grid"> {# Apply auto-scroll-grid class here #}
-        {% for m in trending_movies %}
-        <a href="{{ url_for('movie_detail', movie_id=m._id) }}" class="movie-card">
-          {% if m.poster %}
-            <img class="movie-poster" src="{{ m.poster }}" alt="{{ m.title }}">
-          {% else %}
-            <div style="height:270px; background:#333; display:flex;align-items:center;justify-content:center;color:#777;">
-              No Image
-            </div>
-          {% endif %}
-    
-          <div class="overlay-text">
-              {% if m.is_coming_soon %}
-                  <span class="label-badge coming-soon-badge">COMING SOON</span>
-              {% elif m.top_label %}
-                  <span class="label-badge custom-label">{{ m.top_label | upper }}</span>
-              {% elif m.original_language and m.original_language != 'N/A' %}
-                  <span class="label-badge">{{ m.original_language | upper }}</span>
-              {% endif %}
-              <span class="movie-top-title" title="{{ m.title }}">{{ m.title }}</span>
-          </div>
-    
-          {% if m.quality %}
-            <div class="badge {% if m.quality == 'TRENDING' %}trending{% endif %}">{{ m.quality }}</div>
-          {% endif %}
-          <div class="movie-info">
-            <h3 class="movie-title" title="{{ m.title }}">{{ m.title }}</h3>
-            <div class="movie-year">{{ m.year }}</div>
-          </div>
-        </a>
-        {% endfor %}
+  {% else %} {# Original home page sections #}
+    {% if query %}
+      <div class="category-header">
+        <h2>Search Results for "{{ query }}"</h2>
       </div>
-    {% endif %}
+      {% if movies|length == 0 %}
+        <p style="text-align:center; color:#999; margin-top: 40px;">No movies found for your search.</p>
+      {% else %}
+        <div class="grid vertical-grid"> {# Search results also vertical #}
+          {% for m in movies %}
+          <a href="{{ url_for('movie_detail', movie_id=m._id) }}" class="movie-card">
+            {% if m.poster %}
+              <img class="movie-poster" src="{{ m.poster }}" alt="{{ m.title }}">
+            {% else %}
+              <div style="height:270px; background:#333; display:flex;align-items:center;justify-content:center;color:#777;">
+                No Image
+              </div>
+            {% endif %}
+      
+            <div class="overlay-text">
+                {% if m.is_coming_soon %}
+                    <span class="label-badge coming-soon-badge">COMING SOON</span>
+                {% elif m.top_label %}
+                    <span class="label-badge custom-label">{{ m.top_label | upper }}</span>
+                {% elif m.original_language and m.original_language != 'N/A' %}
+                    <span class="label-badge">{{ m.original_language | upper }}</span>
+                {% endif %}
+                <span class="movie-top-title" title="{{ m.title }}">{{ m.title }}</span>
+            </div>
+      
+            {% if m.quality %}
+              <div class="badge {% if m.quality == 'TRENDING' %}trending{% endif %}">{{ m.quality }}</div>
+            {% endif %}
+            <div class="movie-info">
+              <h3 class="movie-title" title="{{ m.title }}">{{ m.title }}</h3>
+              <div class="movie-year">{{ m.year }}</div>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="category-header">
+        <h2>Trending on MovieZone</h2>
+        <a href="{{ url_for('trending_movies') }}" class="see-all-btn">See All</a>
+      </div>
+      {% if trending_movies|length == 0 %}
+        <p style="text-align:center; color:#999;">No trending movies found.</p>
+      {% else %}
+        <div class="grid"> {# Homepage trending grid remains horizontal #}
+          {% for m in trending_movies %}
+          <a href="{{ url_for('movie_detail', movie_id=m._id) }}" class="movie-card">
+            {% if m.poster %}
+              <img class="movie-poster" src="{{ m.poster }}" alt="{{ m.title }}">
+            {% else %}
+              <div style="height:270px; background:#333; display:flex;align-items:center;justify-content:center;color:#777;">
+                No Image
+              </div>
+            {% endif %}
+      
+            <div class="overlay-text">
+                {% if m.is_coming_soon %}
+                    <span class="label-badge coming-soon-badge">COMING SOON</span>
+                {% elif m.top_label %}
+                    <span class="label-badge custom-label">{{ m.top_label | upper }}</span>
+                {% elif m.original_language and m.original_language != 'N/A' %}
+                    <span class="label-badge">{{ m.original_language | upper }}</span>
+                {% endif %}
+                <span class="movie-top-title" title="{{ m.title }}">{{ m.title }}</span>
+            </div>
+      
+            {% if m.quality %}
+              <div class="badge {% if m.quality == 'TRENDING' %}trending{% endif %}">{{ m.quality }}</div>
+            {% endif %}
+            <div class="movie-info">
+              <h3 class="movie-title" title="{{ m.title }}">{{ m.title }}</h3>
+              <div class="movie-year">{{ m.year }}</div>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      {% endif %}
 
-    <div class="category-header">
-      <h2>Latest Movies</h2>
-      <a href="{{ url_for('movies_only') }}" class="see-all-btn">See All</a>
-    </div>
-    {% if latest_movies|length == 0 %}
-      <p style="text-align:center; color:#999;">No movies found.</p>
-    {% else %}
-      <div class="grid auto-scroll-grid"> {# Apply auto-scroll-grid class here #}
-        {% for m in latest_movies %}
-        <a href="{{ url_for('movie_detail', movie_id=m._id) }}" class="movie-card">
-          {% if m.poster %}
-            <img class="movie-poster" src="{{ m.poster }}" alt="{{ m.title }}">
-          {% else %}
-            <div style="height:270px; background:#333; display:flex;align-items:center;justify-content:center;color:#777;">
-              No Image
-            </div>
-          {% endif %}
-    
-          <div class="overlay-text">
-              {% if m.is_coming_soon %}
-                  <span class="label-badge coming-soon-badge">COMING SOON</span>
-              {% elif m.top_label %}
-                  <span class="label-badge custom-label">{{ m.top_label | upper }}</span>
-              {% elif m.original_language and m.original_language != 'N/A' %}
-                  <span class="label-badge">{{ m.original_language | upper }}</span>
-              {% endif %}
-              <span class="movie-top-title" title="{{ m.title }}">{{ m.title }}</span>
-          </div>
-    
-          {% if m.quality %}
-            <div class="badge {% if m.quality == 'TRENDING' %}trending{% endif %}">{{ m.quality }}</div>
-          {% endif %}
-          <div class="movie-info">
-            <h3 class="movie-title" title="{{ m.title }}">{{ m.title }}</h3>
-            <div class="movie-year">{{ m.year }}</div>
-          </div>
-        </a>
-        {% endfor %}
+      <div class="category-header">
+        <h2>Latest Movies</h2>
+        <a href="{{ url_for('movies_only') }}" class="see-all-btn">See All</a>
       </div>
-    {% endif %}
+      {% if latest_movies|length == 0 %}
+        <p style="text-align:center; color:#999;">No movies found.</p>
+      {% else %}
+        <div class="grid"> {# Homepage latest movies grid remains horizontal #}
+          {% for m in latest_movies %}
+          <a href="{{ url_for('movie_detail', movie_id=m._id) }}" class="movie-card">
+            {% if m.poster %}
+              <img class="movie-poster" src="{{ m.poster }}" alt="{{ m.title }}">
+            {% else %}
+              <div style="height:270px; background:#333; display:flex;align-items:center;justify-content:center;color:#777;">
+                No Image
+              </div>
+            {% endif %}
+      
+            <div class="overlay-text">
+                {% if m.is_coming_soon %}
+                    <span class="label-badge coming-soon-badge">COMING SOON</span>
+                {% elif m.top_label %}
+                    <span class="label-badge custom-label">{{ m.top_label | upper }}</span>
+                {% elif m.original_language and m.original_language != 'N/A' %}
+                    <span class="label-badge">{{ m.original_language | upper }}</span>
+                {% endif %}
+                <span class="movie-top-title" title="{{ m.title }}">{{ m.title }}</span>
+            </div>
+      
+            {% if m.quality %}
+              <div class="badge {% if m.quality == 'TRENDING' %}trending{% endif %}">{{ m.quality }}</div>
+            {% endif %}
+            <div class="movie-info">
+              <h3 class="movie-title" title="{{ m.title }}">{{ m.title }}</h3>
+              <div class="movie-year">{{ m.year }}</div>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      {% endif %}
 
-    <div class="category-header">
-      <h2>Latest TV Series & Web Series</h2>
-      <a href="{{ url_for('webseries') }}" class="see-all-btn">See All</a>
-    </div>
-    {% if latest_series|length == 0 %}
-      <p style="text-align:center; color:#999;">No TV series or web series found.</p>
-    {% else %}
-      <div class="grid auto-scroll-grid"> {# Apply auto-scroll-grid class here #}
-        {% for m in latest_series %}
-        <a href="{{ url_for('movie_detail', movie_id=m._id) }}" class="movie-card">
-          {% if m.poster %}
-            <img class="movie-poster" src="{{ m.poster }}" alt="{{ m.title }}">
-          {% else %}
-            <div style="height:270px; background:#333; display:flex;align-items:center;justify-content:center;color:#777;">
-              No Image
-            </div>
-          {% endif %}
-    
-          <div class="overlay-text">
-              {% if m.is_coming_soon %}
-                  <span class="label-badge coming-soon-badge">COMING SOON</span>
-              {% elif m.top_label %}
-                  <span class="label-badge custom-label">{{ m.top_label | upper }}</span>
-              {% elif m.original_language and m.original_language != 'N/A' %}
-                  <span class="label-badge">{{ m.original_language | upper }}</span>
-              {% endif %}
-              <span class="movie-top-title" title="{{ m.title }}">{{ m.title }}</span>
-          </div>
-    
-          {% if m.quality %}
-            <div class="badge {% if m.quality == 'TRENDING' %}trending{% endif %}">{{ m.quality }}</div>
-          {% endif %}
-          <div class="movie-info">
-            <h3 class="movie-title" title="{{ m.title }}">{{ m.title }}</h3>
-            <div class="movie-year">{{ m.year }}</div>
-          </div>
-        </a>
-        {% endfor %}
+      <div class="category-header">
+        <h2>Latest TV Series & Web Series</h2>
+        <a href="{{ url_for('webseries') }}" class="see-all-btn">See All</a>
       </div>
-    {% endif %}
+      {% if latest_series|length == 0 %}
+        <p style="text-align:center; color:#999;">No TV series or web series found.</p>
+      {% else %}
+        <div class="grid"> {# Homepage latest series grid remains horizontal #}
+          {% for m in latest_series %}
+          <a href="{{ url_for('movie_detail', movie_id=m._id) }}" class="movie-card">
+            {% if m.poster %}
+              <img class="movie-poster" src="{{ m.poster }}" alt="{{ m.title }}">
+            {% else %}
+              <div style="height:270px; background:#333; display:flex;align-items:center;justify-content:center;color:#777;">
+                No Image
+              </div>
+            {% endif %}
+      
+            <div class="overlay-text">
+                {% if m.is_coming_soon %}
+                    <span class="label-badge coming-soon-badge">COMING SOON</span>
+                {% elif m.top_label %}
+                    <span class="label-badge custom-label">{{ m.top_label | upper }}</span>
+                {% elif m.original_language and m.original_language != 'N/A' %}
+                    <span class="label-badge">{{ m.original_language | upper }}</span>
+                {% endif %}
+                <span class="movie-top-title" title="{{ m.title }}">{{ m.title }}</span>
+            </div>
+      
+            {% if m.quality %}
+              <div class="badge {% if m.quality == 'TRENDING' %}trending{% endif %}">{{ m.quality }}</div>
+            {% endif %}
+            <div class="movie-info">
+              <h3 class="movie-title" title="{{ m.title }}">{{ m.title }}</h3>
+              <div class="movie-year">{{ m.year }}</div>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      {% endif %}
 
-    <div class="category-header">
-      <h2>Coming Soon</h2>
-      <a href="{{ url_for('coming_soon') }}" class="see-all-btn">See All</a>
-    </div>
-    {% if coming_soon_movies|length == 0 %}
-      <p style="text-align:center; color:#999;">No upcoming movies found.</p>
-    {% else %}
-      <div class="grid auto-scroll-grid"> {# Apply auto-scroll-grid class here #}
-        {% for m in coming_soon_movies %}
-        <a href="{{ url_for('movie_detail', movie_id=m._id) }}" class="movie-card">
-          {% if m.poster %}
-            <img class="movie-poster" src="{{ m.poster }}" alt="{{ m.title }}">
-          {% else %}
-            <div style="height:270px; background:#333; display:flex;align-items:center;justify-content:center;color:#777;">
-              No Image
-            </div>
-          {% endif %}
-    
-          <div class="overlay-text">
-              <span class="label-badge coming-soon-badge">COMING SOON</span>
-              <span class="movie-top-title" title="{{ m.title }}">{{ m.title }}</span>
-          </div>
-    
-          {% if m.quality %}
-            <div class="badge {% if m.quality == 'TRENDING' %}trending{% endif %}">{{ m.quality }}</div>
-          {% endif %}
-          <div class="movie-info">
-            <h3 class="movie-title" title="{{ m.title }}">{{ m.title }}</h3>
-            <div class="movie-year">{{ m.year }}</div>
-          </div>
-        </a>
-        {% endfor %}
+      <div class="category-header">
+        <h2>Coming Soon</h2>
+        <a href="{{ url_for('coming_soon') }}" class="see-all-btn">See All</a>
       </div>
+      {% if coming_soon_movies|length == 0 %}
+        <p style="text-align:center; color:#999;">No upcoming movies found.</p>
+      {% else %}
+        <div class="grid"> {# Homepage coming soon grid remains horizontal #}
+          {% for m in coming_soon_movies %}
+          <a href="{{ url_for('movie_detail', movie_id=m._id) }}" class="movie-card">
+            {% if m.poster %}
+              <img class="movie-poster" src="{{ m.poster }}" alt="{{ m.title }}">
+            {% else %}
+              <div style="height:270px; background:#333; display:flex;align-items:center;justify-content:center;color:#777;">
+                No Image
+              </div>
+            {% endif %}
+      
+            <div class="overlay-text">
+                <span class="label-badge coming-soon-badge">COMING SOON</span>
+                <span class="movie-top-title" title="{{ m.title }}">{{ m.title }}</span>
+            </div>
+      
+            {% if m.quality %}
+              <div class="badge {% if m.quality == 'TRENDING' %}trending{% endif %}">{{ m.quality }}</div>
+            {% endif %}
+            <div class="movie-info">
+              <h3 class="movie-title" title="{{ m.title }}">{{ m.title }}</h3>
+              <div class="movie-year">{{ m.year }}</div>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      {% endif %}
     {% endif %}
-  {% endif %}
+  {% endif %} {# End of is_full_page_list / else query block #}
 </main>
 <nav class="bottom-nav">
   <a href="{{ url_for('home') }}" class="nav-item {% if request.endpoint == 'home' and not request.args.get('q') %}active{% endif %}">
@@ -652,13 +692,14 @@ index_html = """
 
 
 # --- START OF detail_html TEMPLATE ---
+# (আপনার detail_html কোড এখানে থাকবে, যা আগের মতো)
 detail_html = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>{{ movie.title if movie else "Movie Not Found" }} - Movie Details</title>
+<title>{{ movie.title if movie else "Movie Not Found" }} - MovieZone Details</title>
 <style>
   /* General styles (similar to index_html for consistency) */
   * { box-sizing: border-box; margin: 0; padding: 0;}
@@ -846,7 +887,7 @@ detail_html = """
   .download-button:hover {
     transform: translateY(-3px);
     box-shadow: 0 6px 15px rgba(0,0,0,0.7);
-    background: linear-gradient(to right, #7b2dfc, #9a4beb, #5c1bb2); /* Slightly brighter purple */
+    background: linear-gradient(to right, #7b2df2, #9a4beb, #5c1bb2); /* Slightly brighter purple */
   }
 
   .no-link-message {
@@ -927,7 +968,7 @@ detail_html = """
 <body>
 <header>
   <a href="{{ url_for('home') }}" class="back-button"><i class="fas fa-arrow-left"></i>Back</a>
-  <h1>Movie Dokan</h1>
+  <h1>MovieZone</h1>
 </header>
 <main>
   {% if movie %}
@@ -1009,11 +1050,12 @@ detail_html = """
 
 
 # --- START OF admin_html TEMPLATE ---
+# (আপনার admin_html কোড এখানে থাকবে, যা আগের মতো)
 admin_html = """
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Admin Panel - Movie Dokan</title>
+  <title>Admin Panel - MovieZone</title>
   <style>
     body { font-family: Arial, sans-serif; background: #121212; color: #eee; padding: 20px; }
     h2 { 
@@ -1097,6 +1139,10 @@ admin_html = """
     td {
         background: #181818;
     }
+    .action-buttons {
+        display: flex;
+        gap: 5px;
+    }
     .delete-btn {
         background: #e44d26;
         color: #fff;
@@ -1111,6 +1157,21 @@ admin_html = """
     }
     .delete-btn:hover {
         background: #d43d16;
+    }
+    .edit-btn {
+        background: #007bff; /* Blue color for edit */
+        color: #fff;
+        padding: 5px 10px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-size: 14px;
+        width: auto;
+        margin-bottom: 0;
+        display: inline-block; /* Allows padding and margin */
+        transition: background 0.3s ease;
+    }
+    .edit-btn:hover {
+        background: #0056b3;
     }
     .movie-list-container {
         max-width: 800px;
@@ -1226,7 +1287,8 @@ admin_html = """
           <td>{{ movie.quality }}</td>
           <td>{% if movie.quality == 'TRENDING' %}Yes{% else %}No{% endif %}</td>
           <td>{% if movie.is_coming_soon %}Yes{% else %}No{% endif %}</td>
-          <td>
+          <td class="action-buttons">
+            <a href="{{ url_for('edit_movie', movie_id=movie._id) }}" class="edit-btn">Edit</a>
             <button class="delete-btn" onclick="confirmDelete('{{ movie._id }}', '{{ movie.title }}')">Delete</button>
           </td>
         </tr>
@@ -1250,6 +1312,177 @@ admin_html = """
 """
 # --- END OF admin_html TEMPLATE ---
 
+
+# --- START OF edit_html TEMPLATE ---
+# (আপনার edit_html কোড এখানে থাকবে, যা আগের মতো)
+edit_html = """
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Edit Content - MovieZone</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #121212; color: #eee; padding: 20px; }
+    h2 { 
+      background: linear-gradient(270deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
+      background-size: 400% 400%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: gradientShift 10s ease infinite;
+      display: inline-block;
+      font-size: 28px;
+      margin-bottom: 20px;
+    }
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    form { max-width: 600px; margin-bottom: 40px; border: 1px solid #333; padding: 20px; border-radius: 8px;}
+    
+    .form-group {
+        margin-bottom: 15px;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #ddd;
+    }
+    input[type="text"], input[type="url"], textarea, button, select {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 5px;
+      border: none;
+      font-size: 16px;
+      background: #222;
+      color: #eee;
+    }
+    input[type="checkbox"] {
+        width: auto;
+        margin-right: 10px;
+    }
+    textarea {
+        resize: vertical;
+        min-height: 80px;
+    }
+    .link-input-group input[type="url"] {
+        margin-bottom: 5px;
+    }
+    .link-input-group p {
+        font-size: 14px;
+        color: #bbb;
+        margin-bottom: 5px;
+    }
+
+    button {
+      background: #1db954;
+      color: #000;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    button:hover {
+      background: #17a34a;
+    }
+    .back-to-admin {
+        display: inline-block;
+        margin-bottom: 20px;
+        color: #1db954;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    .back-to-admin:hover {
+        text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <a href="{{ url_for('admin') }}" class="back-to-admin">&larr; Back to Admin Panel</a>
+  <h2>Edit Content: {{ movie.title }}</h2>
+  <form method="post">
+    <div class="form-group">
+        <label for="title">Movie/Series Title:</label>
+        <input type="text" name="title" id="title" placeholder="Movie or Series Title" value="{{ movie.title }}" required />
+    </div>
+
+    <div class="form-group">
+        <label for="content_type">Content Type:</label>
+        <select name="content_type" id="content_type">
+            <option value="movie" {% if movie.type == 'movie' %}selected{% endif %}>Movie</option>
+            <option value="series" {% if movie.type == 'series' %}selected{% endif %}>TV Series / Web Series</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>Download Links (only paste URL):</label>
+        <div class="link-input-group">
+            <p>480p Download Link [Approx. 590MB]:</p>
+            <input type="url" name="link_480p" placeholder="Enter 480p download link" value="{% for link in movie.links %}{% if link.quality == '480p' %}{{ link.url }}{% endif %}{% endfor %}" />
+        </div>
+        <div class="link-input-group">
+            <p>720p Download Link [Approx. 1.4GB]:</p>
+            <input type="url" name="link_720p" placeholder="Enter 720p download link" value="{% for link in movie.links %}{% if link.quality == '720p' %}{{ link.url }}{% endif %}{% endfor %}" />
+        </div>
+        <div class="link-input-group">
+            <p>1080p Download Link [Approx. 2.9GB]:</p>
+            <input type="url" name="link_1080p" placeholder="Enter 1080p download link" value="{% for link in movie.links %}{% if link.quality == '1080p' %}{{ link.url }}{% endif %}{% endfor %}" />
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="quality">Quality Tag (e.g., HD, Hindi Dubbed):</label>
+        <input type="text" name="quality" id="quality" placeholder="Quality tag" value="{{ movie.quality }}" />
+    </div>
+
+    <div class="form-group">
+        <label for="top_label">Poster Top Label (Optional, e.g., Special Offer, New):</label>
+        <input type="text" name="top_label" id="top_label" placeholder="Custom label on poster top" value="{{ movie.top_label }}" />
+    </div>
+
+    <div class="form-group">
+        <input type="checkbox" name="is_trending" id="is_trending" value="true" {% if movie.quality == 'TRENDING' %}checked{% endif %}>
+        <label for="is_trending" style="display: inline-block;">Is Trending?</label>
+    </div>
+
+    <div class="form-group">
+        <input type="checkbox" name="is_coming_soon" id="is_coming_soon" value="true" {% if movie.is_coming_soon %}checked{% endif %}>
+        <label for="is_coming_soon" style="display: inline-block;">Is Coming Soon?</label>
+    </div>
+
+    <div class="form-group">
+        <label for="overview">Overview (Optional - used if TMDb info not found):</label>
+        <textarea name="overview" id="overview" rows="5" placeholder="Enter movie/series overview or synopsis">{{ movie.overview }}</textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="poster_url">Poster URL (Optional - direct image link, used if TMDb info not found):</label>
+        <input type="url" name="poster_url" id="poster_url" placeholder="e.g., https://example.com/poster.jpg" value="{{ movie.poster }}" />
+    </div>
+
+    <div class="form-group">
+        <label for="year">Release Year (Optional - used if TMDb info not found):</label>
+        <input type="text" name="year" id="year" placeholder="e.g., 2023" value="{{ movie.year }}" />
+    </div>
+
+    <div class="form-group">
+        <label for="original_language">Original Language (Optional - used if TMDb info not found):</label>
+        <input type="text" name="original_language" id="original_language" placeholder="e.g., Bengali, English" value="{{ movie.original_language }}" />
+    </div>
+
+    <div class="form-group">
+        <label for="genres">Genres (Optional - comma-separated, used if TMDb info not found):</label>
+        <input type="text" name="genres" id="genres" placeholder="e.g., Action, Drama, Thriller" value="{{ movie.genres | join(', ') }}" />
+    </div>
+    
+    <button type="submit">Update Content</button>
+  </form>
+</body>
+</html>
+"""
+# --- END OF edit_html TEMPLATE ---
+
+
 @app.route('/')
 def home():
     query = request.args.get('q')
@@ -1260,14 +1493,18 @@ def home():
     latest_series_list = []
     coming_soon_movies_list = []
 
+    # is_full_page_list = False for the homepage
+    is_full_page_list = False
+
     if query:
         # Search functionality remains the same
         result = movies.find({"title": {"$regex": query, "$options": "i"}})
         movies_list = list(result)
+        is_full_page_list = True # Search results should also be vertical
     else:
-        # Fetch data for each category on the homepage
+        # Fetch data for each category on the homepage with a limit of 6
         # Trending (quality == 'TRENDING')
-        trending_movies_result = movies.find({"quality": "TRENDING"}).sort('_id', -1).limit(12)
+        trending_movies_result = movies.find({"quality": "TRENDING"}).sort('_id', -1).limit(6)
         trending_movies_list = list(trending_movies_result)
 
         # Latest Movies (type == 'movie', not trending, not coming soon)
@@ -1275,7 +1512,7 @@ def home():
             "type": "movie",
             "quality": {"$ne": "TRENDING"},
             "is_coming_soon": {"$ne": True}
-        }).sort('_id', -1).limit(12)
+        }).sort('_id', -1).limit(6)
         latest_movies_list = list(latest_movies_result)
 
         # Latest Web Series (type == 'series', not trending, not coming soon)
@@ -1283,11 +1520,11 @@ def home():
             "type": "series",
             "quality": {"$ne": "TRENDING"},
             "is_coming_soon": {"$ne": True}
-        }).sort('_id', -1).limit(12)
+        }).sort('_id', -1).limit(6)
         latest_series_list = list(latest_series_result)
 
         # Coming Soon (is_coming_soon == True)
-        coming_soon_result = movies.find({"is_coming_soon": True}).sort('_id', -1).limit(12)
+        coming_soon_result = movies.find({"is_coming_soon": True}).sort('_id', -1).limit(6)
         coming_soon_movies_list = list(coming_soon_result)
 
     # Convert ObjectIds to strings for all fetched lists
@@ -1296,12 +1533,13 @@ def home():
 
     return render_template_string(
         index_html, 
-        movies=movies_list, # Only used for search results
+        movies=movies_list, # Only used for search results or full page lists
         query=query,
         trending_movies=trending_movies_list,
         latest_movies=latest_movies_list,
         latest_series=latest_series_list,
-        coming_soon_movies=coming_soon_movies_list
+        coming_soon_movies=coming_soon_movies_list,
+        is_full_page_list=is_full_page_list # Pass this flag to the template
     )
 
 @app.route('/movie/<movie_id>')
@@ -1491,7 +1729,7 @@ def admin():
 
         try:
             movies.insert_one(movie_data)
-            print(f"Content '{movie_data['title']}' added successfully!")
+            print(f"Content '{movie_data['title']}' added successfully to MovieZone!")
             return redirect(url_for('admin'))
         except Exception as e:
             print(f"Error inserting content into MongoDB: {e}")
@@ -1504,15 +1742,122 @@ def admin():
     return render_template_string(admin_html, movies=all_content)
 
 
+@app.route('/edit_movie/<movie_id>', methods=["GET", "POST"])
+def edit_movie(movie_id):
+    try:
+        movie = movies.find_one({"_id": ObjectId(movie_id)})
+        if not movie:
+            return "Movie not found!", 404
+
+        if request.method == "POST":
+            # Extract updated data from form
+            title = request.form.get("title")
+            content_type = request.form.get("content_type", "movie")
+            quality_tag = request.form.get("quality", "").upper()
+            
+            links_list = []
+            link_480p = request.form.get("link_480p")
+            if link_480p:
+                links_list.append({"quality": "480p", "size": "590MB", "url": link_480p})
+            link_720p = request.form.get("link_720p")
+            if link_720p:
+                links_list.append({"quality": "720p", "size": "1.4GB", "url": link_720p})
+            link_1080p = request.form.get("link_1080p")
+            if link_1080p:
+                links_list.append({"quality": "1080p", "size": "2.9GB", "url": link_1080p})
+            
+            manual_overview = request.form.get("overview")
+            manual_poster_url = request.form.get("poster_url")
+            manual_year = request.form.get("year")
+            manual_original_language = request.form.get("original_language")
+            manual_genres_str = request.form.get("genres")
+            manual_top_label = request.form.get("top_label")
+            is_trending = request.form.get("is_trending") == "true"
+            is_coming_soon = request.form.get("is_coming_soon") == "true"
+
+            manual_genres_list = [g.strip() for g in manual_genres_str.split(',') if g.strip()] if manual_genres_str else []
+
+            if is_trending:
+                quality_tag = "TRENDING"
+            
+            # Prepare updated data for MongoDB
+            updated_data = {
+                "title": title,
+                "links": links_list,
+                "quality": quality_tag,
+                "type": content_type,
+                "overview": manual_overview if manual_overview else "No overview available.",
+                "poster": manual_poster_url if manual_poster_url else "",
+                "year": manual_year if manual_year else "N/A",
+                "release_date": manual_year if manual_year else "N/A", # Assuming release_date is same as year if manually entered
+                "original_language": manual_original_language if manual_original_language else "N/A",
+                "genres": manual_genres_list,
+                "top_label": manual_top_label if manual_top_label else "",
+                "is_coming_soon": is_coming_soon
+            }
+
+            # If TMDb API Key is available and no manual overview/poster provided, fetch and update
+            if TMDB_API_KEY and (not manual_poster_url and not manual_overview): # Only try to fetch if not manually overridden
+                tmdb_search_type = "movie" if content_type == "movie" else "tv"
+                tmdb_url = f"https://api.themoviedb.org/3/search/{tmdb_search_type}?api_key={TMDB_API_KEY}&query={title}"
+                try:
+                    res = requests.get(tmdb_url, timeout=5).json()
+                    if res and "results" in res and res["results"]:
+                        data = res["results"][0]
+                        # Only update if TMDb provides a value and manual data wasn't explicitly provided
+                        if not manual_overview and data.get("overview"):
+                            updated_data["overview"] = data.get("overview")
+                        if not manual_poster_url and data.get("poster_path"):
+                            updated_data["poster"] = f"https://image.tmdb.org/t/p/w500{data['poster_path']}"
+                        
+                        release_date = data.get("release_date") if tmdb_search_type == "movie" else data.get("first_air_date")
+                        if not manual_year and release_date:
+                            updated_data["year"] = release_date[:4]
+                            updated_data["release_date"] = release_date
+                        
+                        updated_data["vote_average"] = data.get("vote_average", movie.get("vote_average")) # Keep old if TMDb doesn't provide
+                        if not manual_original_language and data.get("original_language"):
+                            updated_data["original_language"] = data.get("original_language")
+                        
+                        genres_names = []
+                        for genre_id in data.get("genre_ids", []):
+                            if genre_id in TMDb_Genre_Map:
+                                genres_names.append(TMDb_Genre_Map[genre_id])
+                        if not manual_genres_list and genres_names:
+                            updated_data["genres"] = genres_names
+                        
+                        updated_data["tmdb_id"] = data.get("id")
+                    else:
+                        print(f"No results found on TMDb for title: {title} ({tmdb_search_type}) during edit.")
+                except requests.exceptions.RequestException as e:
+                    print(f"Error connecting to TMDb API for '{title}' during edit: {e}")
+                except Exception as e:
+                    print(f"An unexpected error occurred while fetching TMDb data during edit: {e}")
+            
+            # Update the movie in MongoDB
+            movies.update_one({"_id": ObjectId(movie_id)}, {"$set": updated_data})
+            print(f"Content '{title}' updated successfully!")
+            return redirect(url_for('admin')) # Redirect back to admin list after update
+
+        else: # GET request, display the form
+            # Convert ObjectId to string for template
+            movie['_id'] = str(movie['_id']) 
+            return render_template_string(edit_html, movie=movie)
+
+    except Exception as e:
+        print(f"Error processing edit for movie ID {movie_id}: {e}")
+        return "An error occurred during editing.", 500
+
+
 @app.route('/delete_movie/<movie_id>')
 def delete_movie(movie_id):
     try:
         # Delete the movie from MongoDB using its ObjectId
         result = movies.delete_one({"_id": ObjectId(movie_id)})
         if result.deleted_count == 1:
-            print(f"Content with ID {movie_id} deleted successfully!")
+            print(f"Content with ID {movie_id} deleted successfully from MovieZone!")
         else:
-            print(f"Content with ID {movie_id} not found.")
+            print(f"Content with ID {movie_id} not found in MovieZone database.")
     except Exception as e:
         print(f"Error deleting content with ID {movie_id}: {e}")
     
@@ -1525,28 +1870,32 @@ def trending_movies():
     trending_list = list(movies.find({"quality": "TRENDING"}).sort('_id', -1))
     for m in trending_list:
         m['_id'] = str(m['_id'])
-    return render_template_string(index_html, movies=trending_list, query="Trending") # Use 'movies' for general display
+    # Pass is_full_page_list=True and use 'movies' for the list
+    return render_template_string(index_html, movies=trending_list, query="Trending on MovieZone", is_full_page_list=True)
 
 @app.route('/movies_only')
 def movies_only():
     movie_list = list(movies.find({"type": "movie", "quality": {"$ne": "TRENDING"}, "is_coming_soon": {"$ne": True}}).sort('_id', -1))
     for m in movie_list:
         m['_id'] = str(m['_id'])
-    return render_template_string(index_html, movies=movie_list, query="All Movies")
+    # Pass is_full_page_list=True and use 'movies' for the list
+    return render_template_string(index_html, movies=movie_list, query="All Movies on MovieZone", is_full_page_list=True)
 
 @app.route('/webseries')
 def webseries():
     series_list = list(movies.find({"type": "series", "quality": {"$ne": "TRENDING"}, "is_coming_soon": {"$ne": True}}).sort('_id', -1))
     for m in series_list:
         m['_id'] = str(m['_id'])
-    return render_template_string(index_html, movies=series_list, query="All Web Series")
+    # Pass is_full_page_list=True and use 'movies' for the list
+    return render_template_string(index_html, movies=series_list, query="All Web Series on MovieZone", is_full_page_list=True)
 
 @app.route('/coming_soon')
 def coming_soon():
     coming_soon_list = list(movies.find({"is_coming_soon": True}).sort('_id', -1))
     for m in coming_soon_list:
         m['_id'] = str(m['_id'])
-    return render_template_string(index_html, movies=coming_soon_list, query="Coming Soon")
+    # Pass is_full_page_list=True and use 'movies' for the list
+    return render_template_string(index_html, movies=coming_soon_list, query="Coming Soon to MovieZone", is_full_page_list=True)
 
 
 if __name__ == "__main__":
